@@ -147,15 +147,16 @@ public class SpineSpriteSheetExporter : EditorWindow
 
         // Check if the export folder exists
         string gameObjectFolder = Path.Combine(exportPath, selectedGameObject.name);
+        string animationFolder = Path.Combine(gameObjectFolder, selectedAnimationName);
 
-        bool folderExists = Directory.Exists(gameObjectFolder);
+        bool folderExists = Directory.Exists(animationFolder);
         maxRes = Vector2.zero;
 
         if (folderExists)
         {
             // Delete existing PNG files in the folder
 
-            string[] existingFiles = Directory.GetFiles(gameObjectFolder, "*.png");
+            string[] existingFiles = Directory.GetFiles(animationFolder, "*.png");
             int maxWidth = 0;
             int maxHeight = 0;
 
@@ -186,6 +187,9 @@ public class SpineSpriteSheetExporter : EditorWindow
             // Create folders for the export path
             if (!Directory.Exists(gameObjectFolder))
                 Directory.CreateDirectory(gameObjectFolder);
+
+            if (!Directory.Exists(animationFolder))
+                Directory.CreateDirectory(animationFolder);
         }
 
         frameCount = Mathf.CeilToInt(selectedGameObject.GetComponent<SkeletonAnimation>().Skeleton.Data.FindAnimation(selectedAnimationName).Duration * framesPerSecond);
@@ -198,7 +202,8 @@ public class SpineSpriteSheetExporter : EditorWindow
     private void CreateSpriteSheet()
     {
         string gameObjectFolder = Path.Combine(exportPath, selectedGameObject.name);
-        string[] existingFiles = Directory.GetFiles(gameObjectFolder, "*.png");
+        string animationFolder = Path.Combine(gameObjectFolder, selectedAnimationName);
+        string[] existingFiles = Directory.GetFiles(animationFolder, "*.png");
         Array.Sort(existingFiles);
 
         // Calculate the number of columns and rows based on your requirements
@@ -236,9 +241,9 @@ public class SpineSpriteSheetExporter : EditorWindow
 
         // Encode the sprite sheet to PNG
         byte[] spriteSheetBytes = spriteSheet.EncodeToPNG();
-
+        string savePath = Path.Combine(gameObjectFolder, selectedAnimationName + ".png");
         // Save the sprite sheet as an image file in the same directory
-        File.WriteAllBytes(Path.Combine(gameObjectFolder, selectedAnimationName + ".png"), spriteSheetBytes);
+        File.WriteAllBytes(savePath, spriteSheetBytes);
 
         // Destroy temporary textures to free up memory
         foreach (var filePath in existingFiles)
@@ -251,15 +256,44 @@ public class SpineSpriteSheetExporter : EditorWindow
 
         // Destroy the sprite sheet texture
         Texture2D.DestroyImmediate(spriteSheet);
+        Debug.Log("Sprite sheet generate at: " + savePath);
 
-        foreach (var file in existingFiles)
-        {
-            File.Delete(file);
-        }
+        File.Delete(gameObjectFolder + selectedAnimationName + ".meta");
+        DeleteFolder(animationFolder);
 
         AssetDatabase.Refresh();
 
     }
+
+    private void DeleteFolder(string folderPath)
+    {
+        // Check if the folder exists
+        if (Directory.Exists(folderPath))
+        {
+            // Delete all files and subdirectories inside the folder
+            string[] allFiles = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
+
+            foreach (string file in allFiles)
+            {
+                File.Delete(file);
+            }
+
+            // Delete the folder itself
+            Directory.Delete(folderPath, true);
+
+            // Check if the folder was successfully deleted
+            if (!Directory.Exists(folderPath))
+            {
+                Debug.Log("Folder deleted successfully.");
+            }
+            else
+            {
+                Debug.LogWarning("Folder deletion failed.");
+            }
+        }
+    }
+
+
     int GetMaxImageWidth(string[] files)
     {
         int maxWidth = 0;
@@ -346,7 +380,6 @@ public class SpineSpriteSheetExporter : EditorWindow
                     isFirstTime = false;
                     ExportFramesBtn();
                 }
-                Debug.Log("Frames exported to: " + exportPath);
             }
         }
     }
@@ -369,7 +402,7 @@ public class SpineSpriteSheetExporter : EditorWindow
         Texture2D croppedTexture = CropTexture(frameTexture, cropRect);
 
         // Save the frame texture as a PNG file
-        string framePath = Path.Combine(exportPath, selectedGameObject.name, $"Frame_{frameIndex:0000}.png");
+        string framePath = Path.Combine(exportPath, selectedGameObject.name, selectedAnimationName, $"Frame_{frameIndex:0000}.png");
         File.WriteAllBytes(framePath, croppedTexture.EncodeToPNG());
 
         // Clean up
